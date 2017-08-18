@@ -22,7 +22,8 @@ namespace Newtonsoft.Json.Linq.JsonPath
         GreaterThan = 6,
         GreaterThanOrEquals = 7,
         And = 8,
-        Or = 9
+        Or = 9,
+        InArray = 10
     }
 
     internal abstract class QueryExpression
@@ -163,6 +164,12 @@ namespace Newtonsoft.Json.Linq.JsonPath
                         break;
                     case QueryOperator.LessThanOrEquals:
                         if (leftValue.CompareTo(rightValue) <= 0)
+                        {
+                            return true;
+                        }
+                        break;
+                    case QueryOperator.InArray:
+                        if (rightValue.Contains(leftValue))
                         {
                             return true;
                         }

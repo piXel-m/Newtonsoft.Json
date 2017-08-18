@@ -33,7 +33,7 @@ namespace Newtonsoft.Json.Linq.JsonPath
 {
     internal class JPath
     {
-        private readonly string _expression;
+        private string _expression;
         public List<PathFilter> Filters { get; }
 
         private int _currentIndex;
@@ -196,7 +196,7 @@ namespace Newtonsoft.Json.Linq.JsonPath
 
         private static PathFilter CreatePathFilter(string member, bool scan)
         {
-            PathFilter filter = (scan) ? (PathFilter)new ScanFilter {Name = member} : new FieldFilter {Name = member};
+            PathFilter filter = (scan) ? (PathFilter)new ScanFilter { Name = member } : new FieldFilter { Name = member };
             return filter;
         }
 
@@ -490,6 +490,31 @@ namespace Newtonsoft.Json.Linq.JsonPath
             throw CreateUnexpectedCharacterException();
         }
 
+        private object ParseArraySide(bool scan)
+        {
+            EatWhitespace();
+
+            List<PathFilter> expressionPath;
+            if (TryParseExpression(scan, out expressionPath))
+            {
+                EatWhitespace();
+                EnsureLength("Path ended with open query.");
+
+                return expressionPath;
+            }
+
+            object array;
+            if (TryParseArray(out array))
+            {
+                EatWhitespace();
+                EnsureLength("Path ended with open query.");
+
+                return new JArray(array);
+            }
+
+            throw CreateUnexpectedCharacterException();
+        }
+
         private QueryExpression ParseExpression(bool scan)
         {
             QueryExpression rootExpression = null;
@@ -510,8 +535,14 @@ namespace Newtonsoft.Json.Linq.JsonPath
                 else
                 {
                     op = ParseOperator();
-
-                    right = ParseSide(scan);
+                    if (op != QueryOperator.InArray)
+                    {
+                        right = ParseSide(scan);
+                    }
+                    else
+                    {
+                        right = ParseArraySide(scan);
+                    }
                 }
 
                 BooleanQueryExpression booleanExpression = new BooleanQueryExpression
@@ -582,6 +613,40 @@ namespace Newtonsoft.Json.Linq.JsonPath
             throw new JsonException("Path ended with open query.");
         }
 
+        private bool TryParseArray(out object array)
+        {
+            var result = new List<object>();
+            var expression = _expression;
+            var currentIndex = ++_currentIndex;
+            var currentChar = default(char);
+            StringBuilder sb = new StringBuilder();
+            
+            while (currentIndex < expression.Length)
+            {
+                currentChar = expression[currentIndex];
+                if (currentChar == ' ' || currentChar == ',' || currentChar == ']' || currentChar == ')')
+                {
+                    _currentIndex = 0;
+                    _expression = sb.ToString();
+                    if (TryParseValue(out object value))
+                    {
+                        result.Add(value);
+                    }
+                    sb = new StringBuilder();
+                }
+                else
+                {
+                    sb.Append(currentChar);
+                    currentIndex++;
+                }
+            }
+
+            array = result;
+            _expression = expression;
+            _currentIndex = currentIndex;
+            return false;
+        }
+
         private bool TryParseValue(out object value)
         {
             char currentChar = _expression[_currentIndex];
@@ -593,12 +658,10 @@ namespace Newtonsoft.Json.Linq.JsonPath
             else if (char.IsDigit(currentChar) || currentChar == '-')
             {
                 StringBuilder sb = new StringBuilder();
-                sb.Append(currentChar);
-
-                _currentIndex++;
                 while (_currentIndex < _expression.Length)
                 {
                     currentChar = _expression[_currentIndex];
+                    sb.Append(currentChar);
                     if (currentChar == ' ' || currentChar == ')')
                     {
                         string numberText = sb.ToString();
@@ -747,6 +810,10 @@ namespace Newtonsoft.Json.Linq.JsonPath
             if (Match(">"))
             {
                 return QueryOperator.GreaterThan;
+            }
+            if (Match("in"))
+            {
+                return QueryOperator.InArray;
             }
 
             throw new JsonException("Could not read query operator.");

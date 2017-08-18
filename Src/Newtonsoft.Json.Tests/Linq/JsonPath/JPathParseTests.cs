@@ -411,6 +411,14 @@ namespace Newtonsoft.Json.Tests.Linq.JsonPath
         }
 
         [Test]
+        public void FilterWithInArray()
+        {
+            JPath path = new JPath("[?(@.name in [1,2])]");
+            BooleanQueryExpression expressions = (BooleanQueryExpression)((QueryFilter)path.Filters[0]).Expression;
+            Assert.AreEqual(QueryOperator.InArray, expressions.Operator);
+        }
+
+        [Test]
         public void FilterWithInteger()
         {
             JPath path = new JPath("[?(@.name>=12)]");
@@ -479,7 +487,7 @@ namespace Newtonsoft.Json.Tests.Linq.JsonPath
             Assert.AreEqual("pie", ((FieldFilter)orSecondPaths[0]).Name);
             Assert.AreEqual(QueryOperator.Exists, orSecond.Operator);
         }
-
+        
         [Test]
         public void FilterWithRoot()
         {
@@ -490,7 +498,7 @@ namespace Newtonsoft.Json.Tests.Linq.JsonPath
             Assert.IsInstanceOf(typeof(RootFilter), paths[0]);
             Assert.IsInstanceOf(typeof(FieldFilter), paths[1]);
         }
-
+        
         [Test]
         public void BadOr1()
         {
